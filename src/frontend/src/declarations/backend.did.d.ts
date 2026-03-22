@@ -10,7 +10,82 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface _SERVICE {}
+export interface RKH_Laporan {
+  'id' : bigint,
+  'status' : string,
+  'metode' : string,
+  'indikator' : string,
+  'tanggal' : string,
+  'createdAt' : bigint,
+  'lokasi' : string,
+  'penyuluh' : string,
+  'detail' : string,
+  'tandatangan' : [] | [string],
+  'updatedAt' : bigint,
+  'waktu' : string,
+  'nomorLaporan' : bigint,
+  'sasaran' : string,
+  'namaKegiatan' : string,
+}
+export interface User {
+  'id' : bigint,
+  'nip' : [] | [string],
+  'status' : string,
+  'username' : string,
+  'password' : string,
+  'nama' : string,
+  'createdAt' : bigint,
+  'tandatangan' : [] | [string],
+  'updatedAt' : bigint,
+  'wilayah' : string,
+}
+export interface _SERVICE {
+  'adminLogin' : ActorMethod<
+    [{ 'username' : string, 'password' : string }],
+    boolean
+  >,
+  'approveUser' : ActorMethod<[{ 'userId' : bigint }], boolean>,
+  'createLaporan' : ActorMethod<
+    [
+      {
+        'metode' : string,
+        'indikator' : string,
+        'tanggal' : string,
+        'lokasi' : string,
+        'penyuluh' : string,
+        'detail' : string,
+        'waktu' : string,
+        'sasaran' : string,
+        'namaKegiatan' : string,
+      },
+    ],
+    { 'id' : bigint }
+  >,
+  'getAllLaporan' : ActorMethod<[{}], Array<RKH_Laporan>>,
+  'getAllUsers' : ActorMethod<[{}], Array<User>>,
+  'getLaporanByPenyuluh' : ActorMethod<
+    [{ 'penyuluh' : string }],
+    Array<RKH_Laporan>
+  >,
+  'isUsernameTaken' : ActorMethod<[{ 'username' : string }], boolean>,
+  'loginUser' : ActorMethod<
+    [{ 'username' : string, 'password' : string }],
+    [] | [User]
+  >,
+  'registerUser' : ActorMethod<
+    [
+      {
+        'nip' : [] | [string],
+        'username' : string,
+        'password' : string,
+        'nama' : string,
+        'tandatangan' : [] | [string],
+        'wilayah' : string,
+      },
+    ],
+    { 'userId' : bigint }
+  >,
+}
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
 export declare const idlFactory: IDL.InterfaceFactory;

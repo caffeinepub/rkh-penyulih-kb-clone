@@ -1,6 +1,8 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+import type { User as BackendUser, RKH_Laporan } from "./backend";
 import { LoginPage } from "./components/LoginPage";
 import { PendingPage } from "./components/PendingPage";
 import { RegisterPage } from "./components/RegisterPage";
@@ -11,8 +13,11 @@ import { UserManagement } from "./components/admin/UserManagement";
 import { PenyuluhDashboard } from "./components/penyuluh/Dashboard";
 import { ReportForm } from "./components/penyuluh/ReportForm";
 import { ReportHistory } from "./components/penyuluh/ReportHistory";
-import { mockReports, mockUsers } from "./data/mockData";
+import { useActor } from "./hooks/useActor";
 import type { AppState, Report, User } from "./types";
+
+const ADMIN_USERNAME = "admin";
+const ADMIN_PASSWORD = "Admin@2024";
 
 type Page =
   | "dashboard"
@@ -29,65 +34,198 @@ const pageTitles: Record<Page, string> = {
   "semua-laporan": "Semua Laporan",
 };
 
+function toUIUser(u: BackendUser): User {
+  const createdMs = Number(u.createdAt) / 1_000_000;
+  const tanggalDaftar = createdMs
+    ? new Date(createdMs).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
+  return {
+    id: String(u.id),
+    nama: u.nama,
+    wilayah: u.wilayah,
+    nip: u.nip ?? "",
+    username: u.username,
+    password: u.password,
+    status: u.status === "Aktif" ? "Aktif" : "Menunggu",
+    tanggalDaftar,
+    tandatangan: u.tandatangan,
+  };
+}
+
+function toUIReport(r: RKH_Laporan): Report {
+  return {
+    id: String(r.id),
+    nomorLaporan: String(r.nomorLaporan),
+    tanggal: r.tanggal,
+    namaKegiatan: r.namaKegiatan,
+    sasaran: r.sasaran,
+    metode: r.metode,
+    lokasi: r.lokasi,
+    indikator: r.indikator,
+    waktu: r.waktu,
+    detail: r.detail,
+    status: r.status === "Terkirim" ? "Terkirim" : "Draf",
+    penyuluh: r.penyuluh,
+    tandatangan: r.tandatangan,
+  };
+}
+
 export default function App() {
+  const { actor, isFetching } = useActor();
   const [appState, setAppState] = useState<AppState>("login");
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-      const stored = localStorage.getItem("rkh_users");
-      if (stored) return JSON.parse(stored) as User[];
-    } catch {}
-    return mockUsers;
-  });
-  const [reports, setReports] = useState<Report[]>(() => {
-    try {
-      const stored = localStorage.getItem("rkh_reports");
-      if (stored) return JSON.parse(stored) as Report[];
-    } catch {}
-    return mockReports;
-  });
+  const [users, setUsers] = useState<User[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingReports, setLoadingReports] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem("rkh_users", JSON.stringify(users));
-  }, [users]);
+  const loadUsers = useCallback(async () => {
+    if (!actor) return;
+    setLoadingUsers(true);
+    try {
+      const backendUsers = await actor.getAllUsers({});
+      setUsers(backendUsers.map(toUIUser));
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal memuat data pengguna");
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [actor]);
 
-  useEffect(() => {
-    localStorage.setItem("rkh_reports", JSON.stringify(reports));
-  }, [reports]);
+  const loadReports = useCallback(
+    async (penyuluh?: string) => {
+      if (!actor) return;
+      setLoadingReports(true);
+      try {
+        let backendReports: RKH_Laporan[];
+        if (penyuluh) {
+          backendReports = await actor.getLaporanByPenyuluh({ penyuluh });
+        } else {
+          backendReports = await actor.getAllLaporan({});
+        }
+        setReports(backendReports.map(toUIReport));
+      } catch (err) {
+        console.error(err);
+        toast.error("Gagal memuat laporan");
+      } finally {
+        setLoadingReports(false);
+      }
+    },
+    [actor],
+  );
 
   const handleNavigate = (state: AppState) => {
     setAppState(state);
     setCurrentPage("dashboard");
   };
 
-  const handleLoginUser = (user: User) => {
-    setCurrentUser(user);
+  const handleLoginAdmin = async (
+    username: string,
+    password: string,
+  ): Promise<boolean> => {
+    if (username.trim() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      // Load data if actor available, but don't block login
+      if (actor) {
+        loadUsers().catch(console.error);
+        loadReports().catch(console.error);
+      }
+      setAppState("app-admin");
+      return true;
+    }
+    return false;
+  };
+
+  const handleLoginPenyuluh = async (
+    username: string,
+    password: string,
+  ): Promise<"ok" | "pending" | "invalid"> => {
+    if (!actor) {
+      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
+      return "invalid";
+    }
+    try {
+      const backendUser = await actor.loginUser({ username, password });
+      if (!backendUser) {
+        // Check if user exists but is pending approval
+        try {
+          const allUsers = await actor.getAllUsers({});
+          const found = allUsers.find(
+            (u) => u.username === username && u.password === password,
+          );
+          if (found) return "pending";
+        } catch {
+          // ignore
+        }
+        return "invalid";
+      }
+      const uiUser = toUIUser(backendUser);
+      setCurrentUser(uiUser);
+      await loadReports(uiUser.nama);
+      setAppState("app-penyuluh");
+      return "ok";
+    } catch (err) {
+      console.error(err);
+      return "invalid";
+    }
   };
 
   const handleLogout = () => {
     setAppState("login");
     setCurrentPage("dashboard");
     setCurrentUser(null);
+    setUsers([]);
+    setReports([]);
   };
 
-  const handleRegisterUser = (userData: Omit<User, "id">) => {
-    const newUser: User = { ...userData, id: String(Date.now()) };
-    setUsers((prev) => [...prev, newUser]);
-  };
-
-  const handleSaveReport = (data: Omit<Report, "id"> & { id?: string }) => {
-    if (data.id) {
-      setReports((prev) =>
-        prev.map((r) => (r.id === data.id ? ({ ...r, ...data } as Report) : r)),
-      );
-    } else {
-      const newReport: Report = { ...data, id: String(Date.now()) } as Report;
-      setReports((prev) => [newReport, ...prev]);
+  const handleRegisterUser = async (userData: Omit<User, "id">) => {
+    if (!actor) {
+      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
+      return;
     }
-    setEditingReport(null);
-    setCurrentPage("riwayat");
+    try {
+      await actor.registerUser({
+        nama: userData.nama,
+        wilayah: userData.wilayah,
+        nip: userData.nip || undefined,
+        username: userData.username,
+        password: userData.password,
+        tandatangan: userData.tandatangan || undefined,
+      });
+      toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
+      handleNavigate("pending");
+    } catch (err) {
+      console.error(err);
+      toast.error("Pendaftaran gagal, coba lagi.");
+    }
+  };
+
+  const handleSaveReport = async (
+    data: Omit<Report, "id"> & { id?: string },
+  ) => {
+    if (!actor || !currentUser) return;
+    try {
+      await actor.createLaporan({
+        namaKegiatan: data.namaKegiatan,
+        tanggal: data.tanggal,
+        sasaran: data.sasaran,
+        metode: data.metode,
+        lokasi: data.lokasi,
+        indikator: data.indikator,
+        waktu: data.waktu,
+        detail: data.detail,
+        penyuluh: data.penyuluh,
+      });
+      toast.success("Laporan berhasil disimpan");
+      await loadReports(currentUser.nama);
+      setEditingReport(null);
+      setCurrentPage("riwayat");
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal menyimpan laporan");
+    }
   };
 
   const handleEditReport = (report: Report) => {
@@ -95,21 +233,34 @@ export default function App() {
     setCurrentPage("buat-laporan");
   };
 
-  const handleDeleteReport = (id: string) => {
+  const handleDeleteReport = async (id: string) => {
     setReports((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const handleApproveUser = (id: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, status: "Aktif" as const } : u)),
-    );
+  const handleApproveUser = async (id: string) => {
+    if (!actor) return;
+    try {
+      const ok = await actor.approveUser({ userId: BigInt(id) });
+      if (ok) {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === id ? { ...u, status: "Aktif" as const } : u,
+          ),
+        );
+      } else {
+        toast.error("Gagal menyetujui pengguna");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal menyetujui pengguna");
+    }
   };
 
-  const handleRejectUser = (id: string) => {
+  const handleRejectUser = async (id: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== id));
   };
 
-  const handleDeleteUser = (id: string) => {
+  const handleDeleteUser = async (id: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== id));
   };
 
@@ -120,13 +271,23 @@ export default function App() {
     }
   };
 
+  const handlePageChange = async (page: Page) => {
+    setCurrentPage(page);
+    if (page === "manajemen-pengguna") {
+      await loadUsers();
+    } else if (page === "semua-laporan") {
+      await loadReports();
+    }
+  };
+
   if (appState === "login") {
     return (
       <>
         <LoginPage
           onNavigate={handleNavigate}
-          users={users}
-          onLoginUser={handleLoginUser}
+          onLoginAdmin={handleLoginAdmin}
+          onLoginPenyuluh={handleLoginPenyuluh}
+          isActorReady={!!actor && !isFetching}
         />
         <Toaster />
       </>
@@ -138,6 +299,7 @@ export default function App() {
         <RegisterPage
           onNavigate={handleNavigate}
           onRegisterUser={handleRegisterUser}
+          actor={actor}
         />
         <Toaster />
       </>
@@ -201,6 +363,7 @@ export default function App() {
         return (
           <UserManagement
             users={users}
+            loading={loadingUsers}
             onApprove={handleApproveUser}
             onReject={handleRejectUser}
             onDelete={handleDeleteUser}
@@ -209,7 +372,13 @@ export default function App() {
         );
       }
       if (currentPage === "semua-laporan") {
-        return <AllReports reports={reports} onDelete={handleDeleteReport} />;
+        return (
+          <AllReports
+            reports={reports}
+            loading={loadingReports}
+            onDelete={handleDeleteReport}
+          />
+        );
       }
     }
     return null;
@@ -220,9 +389,10 @@ export default function App() {
       <AppLayout
         role={role}
         currentPage={currentPage}
-        onPageChange={setCurrentPage}
+        onPageChange={handlePageChange}
         onLogout={handleLogout}
         pageTitle={pageTitles[currentPage] ?? ""}
+        currentUser={currentUser}
       >
         <AnimatePresence mode="wait">
           <motion.div

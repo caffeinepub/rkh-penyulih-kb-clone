@@ -8,20 +8,56 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, PenLine, Upload, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, PenLine, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import type { backendInterface } from "../backend";
 import type { AppState, User } from "../types";
 import { AuthLayout } from "./AuthPanel";
 
 interface RegisterPageProps {
   onNavigate: (state: AppState) => void;
-  onRegisterUser: (user: Omit<User, "id">) => void;
+  onRegisterUser: (user: Omit<User, "id">) => Promise<void>;
+  actor: backendInterface | null;
+}
+
+// Compress image to max 400x150 JPEG to stay well under ICP's 2MB message limit
+function compressSignatureImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 400;
+      const maxH = 150;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxW) {
+        h = Math.round((h * maxW) / w);
+        w = maxW;
+      }
+      if (h > maxH) {
+        w = Math.round((w * maxH) / h);
+        h = maxH;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("canvas not supported"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
 }
 
 export function RegisterPage({
   onNavigate,
   onRegisterUser,
+  actor,
 }: RegisterPageProps) {
   const [form, setForm] = useState({
     nama: "",
@@ -33,6 +69,7 @@ export function RegisterPage({
   });
   const [showPassword, setShowPassword] = useState(false);
   const [tandatangan, setTandatangan] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,18 +79,35 @@ export function RegisterPage({
       toast.error("File harus berupa gambar (JPG, PNG, dll)");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Ukuran file maksimal 2MB");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 5MB");
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setTandatangan(ev.target?.result as string);
+    reader.onload = async (ev) => {
+      try {
+        const compressed = await compressSignatureImage(
+          ev.target?.result as string,
+        );
+        setTandatangan(compressed);
+      } catch {
+        toast.error("Gagal memproses gambar tanda tangan");
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCheckUsername = async (username: string) => {
+    if (!actor || !username) return;
+    try {
+      const taken = await actor.isUsernameTaken({ username });
+      if (taken) {
+        toast.error("Username sudah digunakan, pilih yang lain");
+      }
+    } catch {}
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nama || !form.wilayah || !form.username || !form.password) {
       toast.error("Nama, Wilayah Kerja, Username, dan Password wajib diisi");
@@ -67,19 +121,21 @@ export function RegisterPage({
       toast.error("Password minimal 6 karakter");
       return;
     }
-    const today = new Date().toISOString().split("T")[0];
-    onRegisterUser({
-      nama: form.nama,
-      wilayah: form.wilayah,
-      nip: form.nip,
-      username: form.username,
-      password: form.password,
-      status: "Menunggu",
-      tanggalDaftar: today,
-      tandatangan: tandatangan ?? undefined,
-    });
-    toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
-    onNavigate("pending");
+    setLoading(true);
+    try {
+      await onRegisterUser({
+        nama: form.nama,
+        wilayah: form.wilayah,
+        nip: form.nip,
+        username: form.username,
+        password: form.password,
+        status: "Menunggu",
+        tanggalDaftar: new Date().toISOString().split("T")[0],
+        tandatangan: tandatangan ?? undefined,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -146,6 +202,7 @@ export function RegisterPage({
                 onChange={(e) =>
                   setForm((p) => ({ ...p, username: e.target.value }))
                 }
+                onBlur={() => handleCheckUsername(form.username)}
                 autoComplete="username"
               />
             </div>
@@ -235,7 +292,7 @@ export function RegisterPage({
                     Klik untuk mengunggah gambar tanda tangan
                   </p>
                   <p className="text-xs text-muted-foreground/60 mt-1">
-                    PNG, JPG, maksimal 2MB
+                    PNG, JPG, maksimal 5MB
                   </p>
                 </button>
               )}
@@ -252,8 +309,16 @@ export function RegisterPage({
               data-ocid="register.submit_button"
               type="submit"
               className="w-full bg-primary text-primary-foreground"
+              disabled={loading}
             >
-              Daftar &amp; Minta Persetujuan
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Mendaftar...
+                </>
+              ) : (
+                "Daftar & Minta Persetujuan"
+              )}
             </Button>
             <div className="text-center">
               <button

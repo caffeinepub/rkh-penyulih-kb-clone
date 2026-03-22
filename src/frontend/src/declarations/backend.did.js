@@ -8,10 +8,198 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const idlService = IDL.Service({});
+export const RKH_Laporan = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : IDL.Text,
+  'metode' : IDL.Text,
+  'indikator' : IDL.Text,
+  'tanggal' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'lokasi' : IDL.Text,
+  'penyuluh' : IDL.Text,
+  'detail' : IDL.Text,
+  'tandatangan' : IDL.Opt(IDL.Text),
+  'updatedAt' : IDL.Int,
+  'waktu' : IDL.Text,
+  'nomorLaporan' : IDL.Nat,
+  'sasaran' : IDL.Text,
+  'namaKegiatan' : IDL.Text,
+});
+export const User = IDL.Record({
+  'id' : IDL.Nat,
+  'nip' : IDL.Opt(IDL.Text),
+  'status' : IDL.Text,
+  'username' : IDL.Text,
+  'password' : IDL.Text,
+  'nama' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'tandatangan' : IDL.Opt(IDL.Text),
+  'updatedAt' : IDL.Int,
+  'wilayah' : IDL.Text,
+});
+
+export const idlService = IDL.Service({
+  'adminLogin' : IDL.Func(
+      [IDL.Record({ 'username' : IDL.Text, 'password' : IDL.Text })],
+      [IDL.Bool],
+      ['query'],
+    ),
+  'approveUser' : IDL.Func(
+      [IDL.Record({ 'userId' : IDL.Nat })],
+      [IDL.Bool],
+      [],
+    ),
+  'createLaporan' : IDL.Func(
+      [
+        IDL.Record({
+          'metode' : IDL.Text,
+          'indikator' : IDL.Text,
+          'tanggal' : IDL.Text,
+          'lokasi' : IDL.Text,
+          'penyuluh' : IDL.Text,
+          'detail' : IDL.Text,
+          'waktu' : IDL.Text,
+          'sasaran' : IDL.Text,
+          'namaKegiatan' : IDL.Text,
+        }),
+      ],
+      [IDL.Record({ 'id' : IDL.Nat })],
+      [],
+    ),
+  'getAllLaporan' : IDL.Func(
+      [IDL.Record({})],
+      [IDL.Vec(RKH_Laporan)],
+      ['query'],
+    ),
+  'getAllUsers' : IDL.Func([IDL.Record({})], [IDL.Vec(User)], ['query']),
+  'getLaporanByPenyuluh' : IDL.Func(
+      [IDL.Record({ 'penyuluh' : IDL.Text })],
+      [IDL.Vec(RKH_Laporan)],
+      ['query'],
+    ),
+  'isUsernameTaken' : IDL.Func(
+      [IDL.Record({ 'username' : IDL.Text })],
+      [IDL.Bool],
+      ['query'],
+    ),
+  'loginUser' : IDL.Func(
+      [IDL.Record({ 'username' : IDL.Text, 'password' : IDL.Text })],
+      [IDL.Opt(User)],
+      ['query'],
+    ),
+  'registerUser' : IDL.Func(
+      [
+        IDL.Record({
+          'nip' : IDL.Opt(IDL.Text),
+          'username' : IDL.Text,
+          'password' : IDL.Text,
+          'nama' : IDL.Text,
+          'tandatangan' : IDL.Opt(IDL.Text),
+          'wilayah' : IDL.Text,
+        }),
+      ],
+      [IDL.Record({ 'userId' : IDL.Nat })],
+      [],
+    ),
+});
 
 export const idlInitArgs = [];
 
-export const idlFactory = ({ IDL }) => { return IDL.Service({}); };
+export const idlFactory = ({ IDL }) => {
+  const RKH_Laporan = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : IDL.Text,
+    'metode' : IDL.Text,
+    'indikator' : IDL.Text,
+    'tanggal' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'lokasi' : IDL.Text,
+    'penyuluh' : IDL.Text,
+    'detail' : IDL.Text,
+    'tandatangan' : IDL.Opt(IDL.Text),
+    'updatedAt' : IDL.Int,
+    'waktu' : IDL.Text,
+    'nomorLaporan' : IDL.Nat,
+    'sasaran' : IDL.Text,
+    'namaKegiatan' : IDL.Text,
+  });
+  const User = IDL.Record({
+    'id' : IDL.Nat,
+    'nip' : IDL.Opt(IDL.Text),
+    'status' : IDL.Text,
+    'username' : IDL.Text,
+    'password' : IDL.Text,
+    'nama' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'tandatangan' : IDL.Opt(IDL.Text),
+    'updatedAt' : IDL.Int,
+    'wilayah' : IDL.Text,
+  });
+  
+  return IDL.Service({
+    'adminLogin' : IDL.Func(
+        [IDL.Record({ 'username' : IDL.Text, 'password' : IDL.Text })],
+        [IDL.Bool],
+        ['query'],
+      ),
+    'approveUser' : IDL.Func(
+        [IDL.Record({ 'userId' : IDL.Nat })],
+        [IDL.Bool],
+        [],
+      ),
+    'createLaporan' : IDL.Func(
+        [
+          IDL.Record({
+            'metode' : IDL.Text,
+            'indikator' : IDL.Text,
+            'tanggal' : IDL.Text,
+            'lokasi' : IDL.Text,
+            'penyuluh' : IDL.Text,
+            'detail' : IDL.Text,
+            'waktu' : IDL.Text,
+            'sasaran' : IDL.Text,
+            'namaKegiatan' : IDL.Text,
+          }),
+        ],
+        [IDL.Record({ 'id' : IDL.Nat })],
+        [],
+      ),
+    'getAllLaporan' : IDL.Func(
+        [IDL.Record({})],
+        [IDL.Vec(RKH_Laporan)],
+        ['query'],
+      ),
+    'getAllUsers' : IDL.Func([IDL.Record({})], [IDL.Vec(User)], ['query']),
+    'getLaporanByPenyuluh' : IDL.Func(
+        [IDL.Record({ 'penyuluh' : IDL.Text })],
+        [IDL.Vec(RKH_Laporan)],
+        ['query'],
+      ),
+    'isUsernameTaken' : IDL.Func(
+        [IDL.Record({ 'username' : IDL.Text })],
+        [IDL.Bool],
+        ['query'],
+      ),
+    'loginUser' : IDL.Func(
+        [IDL.Record({ 'username' : IDL.Text, 'password' : IDL.Text })],
+        [IDL.Opt(User)],
+        ['query'],
+      ),
+    'registerUser' : IDL.Func(
+        [
+          IDL.Record({
+            'nip' : IDL.Opt(IDL.Text),
+            'username' : IDL.Text,
+            'password' : IDL.Text,
+            'nama' : IDL.Text,
+            'tandatangan' : IDL.Opt(IDL.Text),
+            'wilayah' : IDL.Text,
+          }),
+        ],
+        [IDL.Record({ 'userId' : IDL.Nat })],
+        [],
+      ),
+  });
+};
 
 export const init = ({ IDL }) => { return []; };

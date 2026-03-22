@@ -9,57 +9,63 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, LogIn, Monitor, Shield } from "lucide-react";
+import { Eye, EyeOff, Loader2, LogIn, Monitor, Shield } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { AppState, User } from "../types";
+import type { AppState } from "../types";
 import { AuthLayout } from "./AuthPanel";
-
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "Admin@2024";
 
 interface LoginPageProps {
   onNavigate: (state: AppState) => void;
-  users: User[];
-  onLoginUser: (user: User) => void;
+  onLoginAdmin: (username: string, password: string) => Promise<boolean>;
+  onLoginPenyuluh: (
+    username: string,
+    password: string,
+  ) => Promise<"ok" | "pending" | "invalid">;
+  isActorReady: boolean;
 }
 
-export function LoginPage({ onNavigate, users, onLoginUser }: LoginPageProps) {
+export function LoginPage({
+  onNavigate,
+  onLoginAdmin,
+  onLoginPenyuluh,
+  isActorReady,
+}: LoginPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
       toast.error("Username dan password wajib diisi");
       return;
     }
+    if (!isActorReady) {
+      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // Check admin
-      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        onNavigate("app-admin");
-        return;
-      }
-      // Check penyuluh users
-      const user = users.find(
-        (u) => u.username === username && u.password === password,
-      );
-      if (!user) {
+    try {
+      // Try admin first
+      const isAdmin = await onLoginAdmin(username, password);
+      if (isAdmin) return; // navigation handled inside
+
+      // Try penyuluh
+      const result = await onLoginPenyuluh(username, password);
+      if (result === "invalid") {
         toast.error("Username atau password salah");
-        return;
-      }
-      if (user.status === "Menunggu") {
-        onLoginUser(user);
+      } else if (result === "pending") {
         onNavigate("pending");
-        return;
       }
-      onLoginUser(user);
-      onNavigate("app-penyuluh");
-    }, 600);
+      // "ok" → navigation handled inside onLoginPenyuluh
+    } catch (err) {
+      console.error(err);
+      toast.error("Terjadi kesalahan, coba lagi");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,7 +90,7 @@ export function LoginPage({ onNavigate, users, onLoginUser }: LoginPageProps) {
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
-                data-ocid="login.username_input"
+                data-ocid="login.input"
                 placeholder="Masukkan username Anda"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -118,14 +124,33 @@ export function LoginPage({ onNavigate, users, onLoginUser }: LoginPageProps) {
               </div>
             </div>
 
+            {!isActorReady && (
+              <div
+                data-ocid="login.loading_state"
+                className="flex items-center gap-2 text-xs text-muted-foreground"
+              >
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Menghubungkan ke server...
+              </div>
+            )}
+
             <Button
               data-ocid="login.submit_button"
               type="submit"
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={loading}
+              disabled={loading || !isActorReady}
             >
-              <LogIn className="w-4 h-4 mr-2" />
-              {loading ? "Memeriksa..." : "Masuk"}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Memeriksa...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Masuk
+                </>
+              )}
             </Button>
 
             <Separator />
@@ -139,11 +164,7 @@ export function LoginPage({ onNavigate, users, onLoginUser }: LoginPageProps) {
                 type="button"
                 variant="outline"
                 className="w-full text-sm"
-                onClick={() => {
-                  const demoUser = users.find((u) => u.status === "Aktif");
-                  if (demoUser) onLoginUser(demoUser);
-                  onNavigate("app-penyuluh");
-                }}
+                onClick={() => onNavigate("app-penyuluh")}
               >
                 <Monitor className="w-4 h-4 mr-2" />
                 Demo: Masuk sebagai Penyuluh KB

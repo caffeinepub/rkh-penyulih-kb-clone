@@ -27,21 +27,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle, Pencil, Trash2, UserX, XCircle } from "lucide-react";
+import {
+  CheckCircle,
+  Loader2,
+  Pencil,
+  Trash2,
+  UserX,
+  XCircle,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { User } from "../../types";
 
 interface UserManagementProps {
   users: User[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  onDelete: (id: string) => void;
+  loading?: boolean;
+  onApprove: (id: string) => Promise<void>;
+  onReject: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   onUpdate: (user: User) => void;
 }
 
 export function UserManagement({
   users,
+  loading,
   onApprove,
   onReject,
   onDelete,
@@ -50,6 +59,7 @@ export function UserManagement({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({ nama: "", wilayah: "", nip: "" });
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleOpenEdit = (user: User) => {
     setEditUser(user);
@@ -67,8 +77,42 @@ export function UserManagement({
     setEditUser(null);
   };
 
+  const handleApprove = async (user: User) => {
+    setActionLoading(user.id);
+    try {
+      await onApprove(user.id);
+      toast.success(`${user.nama} disetujui`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (user: User) => {
+    setActionLoading(`${user.id}_reject`);
+    try {
+      await onReject(user.id);
+      toast.success(`${user.nama} ditolak`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const pending = users.filter((u) => u.status === "Menunggu");
   const active = users.filter((u) => u.status === "Aktif");
+
+  if (loading) {
+    return (
+      <div
+        data-ocid="users.loading_state"
+        className="flex items-center justify-center py-24"
+      >
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-3 text-muted-foreground">
+          Memuat data pengguna...
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -124,21 +168,22 @@ export function UserManagement({
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs text-success border-success/40 hover:bg-success/10"
-                          onClick={() => {
-                            onApprove(user.id);
-                            toast.success(`${user.nama} disetujui`);
-                          }}
+                          disabled={actionLoading === user.id}
+                          onClick={() => handleApprove(user)}
                         >
-                          <CheckCircle className="w-3 h-3 mr-1" /> Setujui
+                          {actionLoading === user.id ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                          )}
+                          Setujui
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
-                          onClick={() => {
-                            onReject(user.id);
-                            toast.success(`${user.nama} ditolak`);
-                          }}
+                          disabled={actionLoading === `${user.id}_reject`}
+                          onClick={() => handleReject(user)}
                         >
                           <XCircle className="w-3 h-3 mr-1" /> Tolak
                         </Button>
@@ -152,21 +197,23 @@ export function UserManagement({
         </div>
       )}
 
-      <div className="rounded-lg border border-border overflow-hidden bg-card">
-        <div className="px-4 py-3 border-b border-border bg-muted/20">
-          <h4 className="text-sm font-semibold">
-            Pengguna Aktif ({active.length})
-          </h4>
+      {pending.length === 0 && active.length === 0 && (
+        <div
+          data-ocid="users.empty_state"
+          className="flex flex-col items-center justify-center py-16 border border-border rounded-lg bg-card"
+        >
+          <UserX className="w-12 h-12 text-muted-foreground/40 mb-3" />
+          <p className="text-muted-foreground">Belum ada pengguna terdaftar</p>
         </div>
-        {active.length === 0 ? (
-          <div
-            data-ocid="users.empty_state"
-            className="flex flex-col items-center justify-center py-16"
-          >
-            <UserX className="w-12 h-12 text-muted-foreground/40 mb-3" />
-            <p className="text-muted-foreground">Belum ada pengguna aktif</p>
+      )}
+
+      {active.length > 0 && (
+        <div className="rounded-lg border border-border overflow-hidden bg-card">
+          <div className="px-4 py-3 border-b border-border bg-muted/20">
+            <h4 className="text-sm font-semibold">
+              Pengguna Aktif ({active.length})
+            </h4>
           </div>
-        ) : (
           <div className="overflow-x-auto">
             <Table data-ocid="users.table">
               <TableHeader>
@@ -226,8 +273,8 @@ export function UserManagement({
               </TableBody>
             </Table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <Dialog open={!!editUser} onOpenChange={() => setEditUser(null)}>
         <DialogContent className="max-w-md">
@@ -291,9 +338,9 @@ export function UserManagement({
             <AlertDialogAction
               data-ocid="users.confirm_button"
               className="bg-destructive text-destructive-foreground"
-              onClick={() => {
+              onClick={async () => {
                 if (deleteId) {
-                  onDelete(deleteId);
+                  await onDelete(deleteId);
                   toast.success("Pengguna berhasil dihapus");
                   setDeleteId(null);
                 }

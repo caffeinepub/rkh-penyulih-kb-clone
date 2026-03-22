@@ -25,6 +25,7 @@ interface SidebarProps {
   currentPage: Page;
   onPageChange: (page: Page) => void;
   onLogout: () => void;
+  currentUser?: { nama: string } | null;
 }
 
 const penyuluhNav = [
@@ -49,9 +50,11 @@ function SidebarContent({
   onPageChange,
   onLogout,
   onClose,
+  currentUser,
 }: SidebarProps & { onClose?: () => void }) {
   const navItems = role === "admin" ? adminNav : penyuluhNav;
-  const userName = role === "admin" ? "Administrator" : "Budi Santoso";
+  const userName =
+    role === "admin" ? "Administrator" : (currentUser?.nama ?? "Penyuluh");
   const userRole = role === "admin" ? "Admin Sistem" : "Penyuluh KB";
 
   return (
@@ -134,9 +137,11 @@ export function AppLayout({
   onLogout,
   pageTitle,
   children,
+  currentUser,
 }: SidebarProps & { pageTitle: string; children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const userName = role === "admin" ? "Administrator" : "Budi Santoso";
+  const userName =
+    role === "admin" ? "Administrator" : (currentUser?.nama ?? "Penyuluh");
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -146,6 +151,7 @@ export function AppLayout({
           currentPage={currentPage}
           onPageChange={onPageChange}
           onLogout={onLogout}
+          currentUser={currentUser}
         />
       </aside>
 
@@ -172,6 +178,7 @@ export function AppLayout({
                 onPageChange={onPageChange}
                 onLogout={onLogout}
                 onClose={() => setMobileOpen(false)}
+                currentUser={currentUser}
               />
             </motion.aside>
           </>

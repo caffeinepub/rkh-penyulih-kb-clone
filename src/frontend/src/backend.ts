@@ -89,10 +89,374 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface backendInterface {
+export interface User {
+    id: bigint;
+    nip?: string;
+    status: string;
+    username: string;
+    password: string;
+    nama: string;
+    createdAt: bigint;
+    tandatangan?: string;
+    updatedAt: bigint;
+    wilayah: string;
 }
+export interface RKH_Laporan {
+    id: bigint;
+    status: string;
+    metode: string;
+    indikator: string;
+    tanggal: string;
+    createdAt: bigint;
+    lokasi: string;
+    penyuluh: string;
+    detail: string;
+    tandatangan?: string;
+    updatedAt: bigint;
+    waktu: string;
+    nomorLaporan: bigint;
+    sasaran: string;
+    namaKegiatan: string;
+}
+export interface backendInterface {
+    adminLogin(arg0: {
+        username: string;
+        password: string;
+    }): Promise<boolean>;
+    approveUser(arg0: {
+        userId: bigint;
+    }): Promise<boolean>;
+    createLaporan(arg0: {
+        metode: string;
+        indikator: string;
+        tanggal: string;
+        lokasi: string;
+        penyuluh: string;
+        detail: string;
+        waktu: string;
+        sasaran: string;
+        namaKegiatan: string;
+    }): Promise<{
+        id: bigint;
+    }>;
+    getAllLaporan(arg0: {
+    }): Promise<Array<RKH_Laporan>>;
+    getAllUsers(arg0: {
+    }): Promise<Array<User>>;
+    getLaporanByPenyuluh(arg0: {
+        penyuluh: string;
+    }): Promise<Array<RKH_Laporan>>;
+    isUsernameTaken(arg0: {
+        username: string;
+    }): Promise<boolean>;
+    loginUser(arg0: {
+        username: string;
+        password: string;
+    }): Promise<User | null>;
+    registerUser(arg0: {
+        nip?: string;
+        username: string;
+        password: string;
+        nama: string;
+        tandatangan?: string;
+        wilayah: string;
+    }): Promise<{
+        userId: bigint;
+    }>;
+}
+import type { RKH_Laporan as _RKH_Laporan, User as _User } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
+    async adminLogin(arg0: {
+        username: string;
+        password: string;
+    }): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminLogin(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminLogin(arg0);
+            return result;
+        }
+    }
+    async approveUser(arg0: {
+        userId: bigint;
+    }): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.approveUser(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.approveUser(arg0);
+            return result;
+        }
+    }
+    async createLaporan(arg0: {
+        metode: string;
+        indikator: string;
+        tanggal: string;
+        lokasi: string;
+        penyuluh: string;
+        detail: string;
+        waktu: string;
+        sasaran: string;
+        namaKegiatan: string;
+    }): Promise<{
+        id: bigint;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.createLaporan(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.createLaporan(arg0);
+            return result;
+        }
+    }
+    async getAllLaporan(arg0: {
+    }): Promise<Array<RKH_Laporan>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllLaporan(arg0);
+                return from_candid_vec_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllLaporan(arg0);
+            return from_candid_vec_n1(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getAllUsers(arg0: {
+    }): Promise<Array<User>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllUsers(arg0);
+                return from_candid_vec_n5(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllUsers(arg0);
+            return from_candid_vec_n5(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getLaporanByPenyuluh(arg0: {
+        penyuluh: string;
+    }): Promise<Array<RKH_Laporan>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getLaporanByPenyuluh(arg0);
+                return from_candid_vec_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getLaporanByPenyuluh(arg0);
+            return from_candid_vec_n1(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async isUsernameTaken(arg0: {
+        username: string;
+    }): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.isUsernameTaken(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.isUsernameTaken(arg0);
+            return result;
+        }
+    }
+    async loginUser(arg0: {
+        username: string;
+        password: string;
+    }): Promise<User | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.loginUser(arg0);
+                return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.loginUser(arg0);
+            return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async registerUser(arg0: {
+        nip?: string;
+        username: string;
+        password: string;
+        nama: string;
+        tandatangan?: string;
+        wilayah: string;
+    }): Promise<{
+        userId: bigint;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.registerUser(to_candid_record_n9(this._uploadFile, this._downloadFile, arg0));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.registerUser(to_candid_record_n9(this._uploadFile, this._downloadFile, arg0));
+            return result;
+        }
+    }
+}
+function from_candid_RKH_Laporan_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _RKH_Laporan): RKH_Laporan {
+    return from_candid_record_n3(_uploadFile, _downloadFile, value);
+}
+function from_candid_User_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _User): User {
+    return from_candid_record_n7(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_User]): User | null {
+    return value.length === 0 ? null : from_candid_User_n6(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_record_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    id: bigint;
+    status: string;
+    metode: string;
+    indikator: string;
+    tanggal: string;
+    createdAt: bigint;
+    lokasi: string;
+    penyuluh: string;
+    detail: string;
+    tandatangan: [] | [string];
+    updatedAt: bigint;
+    waktu: string;
+    nomorLaporan: bigint;
+    sasaran: string;
+    namaKegiatan: string;
+}): {
+    id: bigint;
+    status: string;
+    metode: string;
+    indikator: string;
+    tanggal: string;
+    createdAt: bigint;
+    lokasi: string;
+    penyuluh: string;
+    detail: string;
+    tandatangan?: string;
+    updatedAt: bigint;
+    waktu: string;
+    nomorLaporan: bigint;
+    sasaran: string;
+    namaKegiatan: string;
+} {
+    return {
+        id: value.id,
+        status: value.status,
+        metode: value.metode,
+        indikator: value.indikator,
+        tanggal: value.tanggal,
+        createdAt: value.createdAt,
+        lokasi: value.lokasi,
+        penyuluh: value.penyuluh,
+        detail: value.detail,
+        tandatangan: record_opt_to_undefined(from_candid_opt_n4(_uploadFile, _downloadFile, value.tandatangan)),
+        updatedAt: value.updatedAt,
+        waktu: value.waktu,
+        nomorLaporan: value.nomorLaporan,
+        sasaran: value.sasaran,
+        namaKegiatan: value.namaKegiatan
+    };
+}
+function from_candid_record_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    id: bigint;
+    nip: [] | [string];
+    status: string;
+    username: string;
+    password: string;
+    nama: string;
+    createdAt: bigint;
+    tandatangan: [] | [string];
+    updatedAt: bigint;
+    wilayah: string;
+}): {
+    id: bigint;
+    nip?: string;
+    status: string;
+    username: string;
+    password: string;
+    nama: string;
+    createdAt: bigint;
+    tandatangan?: string;
+    updatedAt: bigint;
+    wilayah: string;
+} {
+    return {
+        id: value.id,
+        nip: record_opt_to_undefined(from_candid_opt_n4(_uploadFile, _downloadFile, value.nip)),
+        status: value.status,
+        username: value.username,
+        password: value.password,
+        nama: value.nama,
+        createdAt: value.createdAt,
+        tandatangan: record_opt_to_undefined(from_candid_opt_n4(_uploadFile, _downloadFile, value.tandatangan)),
+        updatedAt: value.updatedAt,
+        wilayah: value.wilayah
+    };
+}
+function from_candid_vec_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_RKH_Laporan>): Array<RKH_Laporan> {
+    return value.map((x)=>from_candid_RKH_Laporan_n2(_uploadFile, _downloadFile, x));
+}
+function from_candid_vec_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_User>): Array<User> {
+    return value.map((x)=>from_candid_User_n6(_uploadFile, _downloadFile, x));
+}
+function to_candid_record_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    nip?: string;
+    username: string;
+    password: string;
+    nama: string;
+    tandatangan?: string;
+    wilayah: string;
+}): {
+    nip: [] | [string];
+    username: string;
+    password: string;
+    nama: string;
+    tandatangan: [] | [string];
+    wilayah: string;
+} {
+    return {
+        nip: value.nip ? candid_some(value.nip) : candid_none(),
+        username: value.username,
+        password: value.password,
+        nama: value.nama,
+        tandatangan: value.tandatangan ? candid_some(value.tandatangan) : candid_none(),
+        wilayah: value.wilayah
+    };
 }
 export interface CreateActorOptions {
     agent?: Agent;
