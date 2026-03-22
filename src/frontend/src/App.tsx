@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LoginPage } from "./components/LoginPage";
 import { PendingPage } from "./components/PendingPage";
 import { RegisterPage } from "./components/RegisterPage";
@@ -32,10 +32,30 @@ const pageTitles: Record<Page, string> = {
 export default function App() {
   const [appState, setAppState] = useState<AppState>("login");
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [reports, setReports] = useState<Report[]>(mockReports);
+  const [users, setUsers] = useState<User[]>(() => {
+    try {
+      const stored = localStorage.getItem("rkh_users");
+      if (stored) return JSON.parse(stored) as User[];
+    } catch {}
+    return mockUsers;
+  });
+  const [reports, setReports] = useState<Report[]>(() => {
+    try {
+      const stored = localStorage.getItem("rkh_reports");
+      if (stored) return JSON.parse(stored) as Report[];
+    } catch {}
+    return mockReports;
+  });
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("rkh_users", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem("rkh_reports", JSON.stringify(reports));
+  }, [reports]);
 
   const handleNavigate = (state: AppState) => {
     setAppState(state);
