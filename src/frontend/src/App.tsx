@@ -19,6 +19,8 @@ import type { AppState, Report, User } from "./types";
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "Admin@2024";
 
+const SIGNATURE_STORAGE_KEY = (username: string) => `rkh_signature_${username}`;
+
 type Page =
   | "dashboard"
   | "buat-laporan"
@@ -48,7 +50,7 @@ function toUIUser(u: BackendUser): User {
     password: u.password,
     status: u.status === "Aktif" ? "Aktif" : "Menunggu",
     tanggalDaftar,
-    tandatangan: u.tandatangan,
+    tandatangan: undefined,
   };
 }
 
@@ -162,6 +164,13 @@ export default function App() {
         return "invalid";
       }
       const uiUser = toUIUser(backendUser);
+      // Load signature from localStorage
+      const savedSignature = localStorage.getItem(
+        SIGNATURE_STORAGE_KEY(uiUser.username),
+      );
+      if (savedSignature) {
+        uiUser.tandatangan = savedSignature;
+      }
       setCurrentUser(uiUser);
       await loadReports(uiUser.nama);
       setAppState("app-penyuluh");
@@ -185,6 +194,13 @@ export default function App() {
       toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
       return;
     }
+    // Save signature to localStorage BEFORE calling backend (avoid 2MB ICP limit)
+    if (userData.tandatangan) {
+      localStorage.setItem(
+        SIGNATURE_STORAGE_KEY(userData.username),
+        userData.tandatangan,
+      );
+    }
     try {
       await actor.registerUser({
         nama: userData.nama,
@@ -192,11 +208,13 @@ export default function App() {
         nip: userData.nip || undefined,
         username: userData.username,
         password: userData.password,
-        tandatangan: userData.tandatangan || undefined,
+        tandatangan: undefined,
       });
       toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
       handleNavigate("pending");
     } catch (err) {
+      // Cleanup signature from localStorage on failure
+      localStorage.removeItem(SIGNATURE_STORAGE_KEY(userData.username));
       console.error(err);
       toast.error("Pendaftaran gagal, coba lagi.");
     }
