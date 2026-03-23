@@ -21,6 +21,7 @@ const ADMIN_PASSWORD = "Admin@2024";
 
 const SIGNATURE_STORAGE_KEY = (username: string) => `rkh_signature_${username}`;
 const LOCAL_USERS_KEY = "rkh_pending_users";
+const LOCAL_REPORTS_KEY = "rkh_local_reports";
 
 interface LocalUser {
   id: string;
@@ -59,6 +60,19 @@ function localUserToUI(u: LocalUser): User {
     tandatangan:
       localStorage.getItem(SIGNATURE_STORAGE_KEY(u.username)) ?? undefined,
   };
+}
+
+function getLocalReports(): Report[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_REPORTS_KEY);
+    return raw ? (JSON.parse(raw) as Report[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalReports(reports: Report[]): void {
+  localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(reports));
 }
 
 type Page =
@@ -157,16 +171,34 @@ export default function App() {
 
   const loadReports = useCallback(
     async (penyuluh?: string) => {
-      if (!actor) return;
       setLoadingReports(true);
       try {
-        let backendReports: RKH_Laporan[];
-        if (penyuluh) {
-          backendReports = await actor.getLaporanByPenyuluh({ penyuluh });
-        } else {
-          backendReports = await actor.getAllLaporan({});
+        let backendReports: Report[] = [];
+        if (actor) {
+          try {
+            let raw: RKH_Laporan[];
+            if (penyuluh) {
+              raw = await actor.getLaporanByPenyuluh({ penyuluh });
+            } else {
+              raw = await actor.getAllLaporan({});
+            }
+            backendReports = raw.map(toUIReport);
+          } catch (err) {
+            console.error("Backend loadReports error:", err);
+          }
         }
-        setReports(backendReports.map(toUIReport));
+
+        // Merge localStorage reports
+        const allLocal = getLocalReports();
+        const localReports = penyuluh
+          ? allLocal.filter((r) => r.penyuluh === penyuluh)
+          : allLocal;
+
+        // Deduplicate: prefer backend version if same id
+        const backendIds = new Set(backendReports.map((r) => r.id));
+        const uniqueLocal = localReports.filter((r) => !backendIds.has(r.id));
+
+        setReports([...backendReports, ...uniqueLocal]);
       } catch (err) {
         console.error(err);
         toast.error("Gagal memuat laporan");
@@ -245,6 +277,7 @@ export default function App() {
       if (localUser.status === "Aktif") {
         const uiUser = localUserToUI(localUser);
         setCurrentUser(uiUser);
+        await loadReports(uiUser.nama);
         setAppState("app-penyuluh");
         return "ok";
       }
@@ -330,45 +363,105 @@ export default function App() {
   const handleSaveReport = async (
     data: Omit<Report, "id"> & { id?: string },
   ) => {
-    if (!actor || !currentUser) return;
-    try {
-      await actor.createLaporan({
-        namaKegiatan: data.namaKegiatan,
-        tanggal: data.tanggal,
-        sasaran: data.sasaran,
-        metode: data.metode,
-        lokasi: data.lokasi,
-        indikator: data.indikator,
-        waktu: data.waktu,
-        detail: data.detail,
-        penyuluh: data.penyuluh,
-      });
-      toast.success("Laporan berhasil disimpan");
-      // Reload reports and preserve lampiran in local state
-      await loadReports(currentUser.nama);
-      // After reload, attach lampiran to the newly created report (local state only)
-      if (data.lampiran && data.lampiran.length > 0) {
-        setReports((prev) => {
-          // The latest report for this penyuluh should be the one we just saved
-          const updated = [...prev];
-          // Find last report with no lampiran matching this penyuluh
-          const idx = updated.findLastIndex(
-            (r) => r.penyuluh === data.penyuluh && !r.lampiran,
-          );
-          if (idx !== -1) {
-            updated[idx] = {
-              ...updated[idx],
-              lampiran: data.lampiran,
-              tandatangan: data.tandatangan,
-            };
-          }
-          return updated;
+    if (!currentUser) return;
+
+    // Try backend first
+    if (actor) {
+      try {
+        await actor.createLaporan({
+          namaKegiatan: data.namaKegiatan,
+          tanggal: data.tanggal,
+          sasaran: data.sasaran,
+          metode: data.metode,
+          lokasi: data.lokasi,
+          indikator: data.indikator,
+          waktu: data.waktu,
+          detail: data.detail,
+          penyuluh: data.penyuluh,
         });
+        toast.success("Laporan berhasil disimpan");
+        await loadReports(currentUser.nama);
+        // After reload, attach lampiran & tandatangan to the newly created report
+        if (data.lampiran && data.lampiran.length > 0) {
+          setReports((prev) => {
+            const updated = [...prev];
+            const idx = updated.findLastIndex(
+              (r) => r.penyuluh === data.penyuluh && !r.lampiran,
+            );
+            if (idx !== -1) {
+              updated[idx] = {
+                ...updated[idx],
+                lampiran: data.lampiran,
+                tandatangan: data.tandatangan,
+              };
+            }
+            return updated;
+          });
+        }
+        setEditingReport(null);
+        setCurrentPage("riwayat");
+        return;
+      } catch (err) {
+        console.error("Backend save report error, using localStorage:", err);
+        // Fall through to localStorage
       }
+    }
+
+    // localStorage fallback
+    try {
+      const localReports = getLocalReports();
+
+      if (data.id?.startsWith("local_report_")) {
+        // Update existing local report
+        const updated = localReports.map((r) =>
+          r.id === data.id
+            ? {
+                ...r,
+                nomorLaporan: data.nomorLaporan,
+                tanggal: data.tanggal,
+                namaKegiatan: data.namaKegiatan,
+                sasaran: data.sasaran,
+                metode: data.metode,
+                lokasi: data.lokasi,
+                indikator: data.indikator,
+                waktu: data.waktu,
+                detail: data.detail,
+                status: data.status,
+                penyuluh: data.penyuluh,
+                tandatangan: data.tandatangan,
+                lampiran: data.lampiran,
+              }
+            : r,
+        );
+        saveLocalReports(updated);
+      } else {
+        // Create new local report
+        const newReport: Report = {
+          id: `local_report_${Date.now()}`,
+          nomorLaporan: data.nomorLaporan,
+          tanggal: data.tanggal,
+          namaKegiatan: data.namaKegiatan,
+          sasaran: data.sasaran,
+          metode: data.metode,
+          lokasi: data.lokasi,
+          indikator: data.indikator,
+          waktu: data.waktu,
+          detail: data.detail,
+          status: data.status,
+          penyuluh: data.penyuluh,
+          tandatangan: data.tandatangan,
+          lampiran: data.lampiran,
+        };
+        localReports.push(newReport);
+        saveLocalReports(localReports);
+      }
+
+      toast.success("Laporan berhasil disimpan (offline)");
+      await loadReports(currentUser.nama);
       setEditingReport(null);
       setCurrentPage("riwayat");
-    } catch (err) {
-      console.error(err);
+    } catch (localErr) {
+      console.error("localStorage report save error:", localErr);
       toast.error("Gagal menyimpan laporan");
     }
   };
@@ -379,6 +472,10 @@ export default function App() {
   };
 
   const handleDeleteReport = async (id: string) => {
+    if (id.startsWith("local_report_")) {
+      const localReports = getLocalReports();
+      saveLocalReports(localReports.filter((r) => r.id !== id));
+    }
     setReports((prev) => prev.filter((r) => r.id !== id));
   };
 
