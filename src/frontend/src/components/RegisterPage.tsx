@@ -19,6 +19,7 @@ interface RegisterPageProps {
   onNavigate: (state: AppState) => void;
   onRegisterUser: (user: Omit<User, "id">) => Promise<void>;
   actor: backendInterface | null;
+  isActorReady: boolean;
 }
 
 // Compress image to max 400x150 JPEG to stay well under ICP's 2MB message limit
@@ -58,6 +59,7 @@ export function RegisterPage({
   onNavigate,
   onRegisterUser,
   actor,
+  isActorReady,
 }: RegisterPageProps) {
   const [form, setForm] = useState({
     nama: "",
@@ -150,6 +152,18 @@ export function RegisterPage({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!isActorReady && (
+              <div
+                data-ocid="register.loading_state"
+                className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2"
+              >
+                <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+                <span>
+                  Menghubungkan ke server... Pendaftaran akan diproses setelah
+                  terhubung.
+                </span>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="nama">
                 Nama Lengkap <span className="text-destructive">*</span>

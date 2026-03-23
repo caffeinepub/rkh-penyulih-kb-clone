@@ -74,6 +74,7 @@ function toUIReport(r: RKH_Laporan): Report {
 
 export default function App() {
   const { actor, isFetching } = useActor();
+  const isActorReady = !!actor && !isFetching;
   const [appState, setAppState] = useState<AppState>("login");
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
   const [users, setUsers] = useState<User[]>([]);
@@ -149,8 +150,9 @@ export default function App() {
       return "invalid";
     }
     try {
+      // backend.ts returns User | null (already converted from Candid optional)
       const backendUser = await actor.loginUser({ username, password });
-      if (!backendUser) {
+      if (backendUser == null) {
         // Check if user exists but is pending approval
         try {
           const allUsers = await actor.getAllUsers({});
@@ -202,21 +204,24 @@ export default function App() {
       );
     }
     try {
+      // backend.ts accepts nip?: string and handles Candid conversion internally
       await actor.registerUser({
         nama: userData.nama,
         wilayah: userData.wilayah,
         nip: userData.nip || undefined,
         username: userData.username,
         password: userData.password,
-        tandatangan: undefined,
+        tandatangan: undefined, // stored in localStorage only
       });
       toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
       handleNavigate("pending");
     } catch (err) {
       // Cleanup signature from localStorage on failure
       localStorage.removeItem(SIGNATURE_STORAGE_KEY(userData.username));
-      console.error(err);
-      toast.error("Pendaftaran gagal, coba lagi.");
+      console.error("Registration error:", err);
+      toast.error(
+        "Pendaftaran gagal. Pastikan username belum digunakan dan coba lagi.",
+      );
     }
   };
 
@@ -305,7 +310,7 @@ export default function App() {
           onNavigate={handleNavigate}
           onLoginAdmin={handleLoginAdmin}
           onLoginPenyuluh={handleLoginPenyuluh}
-          isActorReady={!!actor && !isFetching}
+          isActorReady={isActorReady}
         />
         <Toaster />
       </>
@@ -318,6 +323,7 @@ export default function App() {
           onNavigate={handleNavigate}
           onRegisterUser={handleRegisterUser}
           actor={actor}
+          isActorReady={isActorReady}
         />
         <Toaster />
       </>
@@ -357,6 +363,7 @@ export default function App() {
           <ReportForm
             initialReport={editingReport ?? undefined}
             userTandatangan={currentUser?.tandatangan}
+            userName={currentUser?.nama}
             onSave={handleSaveReport}
             onCancel={() =>
               setCurrentPage(editingReport ? "riwayat" : "dashboard")

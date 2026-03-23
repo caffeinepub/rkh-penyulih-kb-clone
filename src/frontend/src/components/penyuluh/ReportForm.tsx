@@ -11,6 +11,7 @@ import type { Report, ReportStatus } from "../../types";
 interface ReportFormProps {
   initialReport?: Partial<Report>;
   userTandatangan?: string;
+  userName?: string;
   onSave: (report: Omit<Report, "id"> & { id?: string }) => void;
   onCancel: () => void;
 }
@@ -30,6 +31,7 @@ const emptyForm = {
 export function ReportForm({
   initialReport,
   userTandatangan,
+  userName,
   onSave,
   onCancel,
 }: ReportFormProps) {
@@ -47,7 +49,7 @@ export function ReportForm({
       ...(initialReport?.id ? { id: initialReport.id } : {}),
       ...form,
       status,
-      penyuluh: "Budi Santoso",
+      penyuluh: userName || "",
       tandatangan: userTandatangan,
     });
     toast.success(
@@ -216,7 +218,7 @@ export function ReportForm({
                     className="max-h-20 max-w-[200px] object-contain border border-border/40 rounded p-1 bg-white"
                   />
                   <p className="text-xs text-muted-foreground font-medium">
-                    Budi Santoso
+                    {userName || ""}
                   </p>
                   <p className="text-xs text-muted-foreground/60">
                     Penyuluh KB

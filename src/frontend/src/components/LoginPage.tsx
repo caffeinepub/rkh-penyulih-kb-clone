@@ -42,15 +42,17 @@ export function LoginPage({
       toast.error("Username dan password wajib diisi");
       return;
     }
-    if (!isActorReady) {
-      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
-      return;
-    }
     setLoading(true);
     try {
-      // Try admin first
+      // Try admin first (no actor needed - checked in frontend)
       const isAdmin = await onLoginAdmin(username, password);
       if (isAdmin) return; // navigation handled inside
+
+      // Penyuluh login needs actor
+      if (!isActorReady) {
+        toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
+        return;
+      }
 
       // Try penyuluh
       const result = await onLoginPenyuluh(username, password);
@@ -130,7 +132,7 @@ export function LoginPage({
                 className="flex items-center gap-2 text-xs text-muted-foreground"
               >
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Menghubungkan ke server...
+                Menghubungkan ke server... (login Admin tetap bisa dilakukan)
               </div>
             )}
 
@@ -138,7 +140,7 @@ export function LoginPage({
               data-ocid="login.submit_button"
               type="submit"
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={loading || !isActorReady}
+              disabled={loading}
             >
               {loading ? (
                 <>
