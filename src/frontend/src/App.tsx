@@ -20,6 +20,46 @@ const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "Admin@2024";
 
 const SIGNATURE_STORAGE_KEY = (username: string) => `rkh_signature_${username}`;
+const LOCAL_USERS_KEY = "rkh_pending_users";
+
+interface LocalUser {
+  id: string;
+  nama: string;
+  wilayah: string;
+  nip: string;
+  username: string;
+  password: string;
+  status: "Menunggu" | "Aktif";
+  tanggalDaftar: string;
+}
+
+function getLocalUsers(): LocalUser[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_USERS_KEY);
+    return raw ? (JSON.parse(raw) as LocalUser[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalUsers(users: LocalUser[]): void {
+  localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+}
+
+function localUserToUI(u: LocalUser): User {
+  return {
+    id: u.id,
+    nama: u.nama,
+    wilayah: u.wilayah,
+    nip: u.nip,
+    username: u.username,
+    password: u.password,
+    status: u.status,
+    tanggalDaftar: u.tanggalDaftar,
+    tandatangan:
+      localStorage.getItem(SIGNATURE_STORAGE_KEY(u.username)) ?? undefined,
+  };
+}
 
 type Page =
   | "dashboard"
@@ -86,14 +126,30 @@ export default function App() {
   const [loadingReports, setLoadingReports] = useState(false);
 
   const loadUsers = useCallback(async () => {
-    if (!actor) return;
     setLoadingUsers(true);
     try {
-      const backendUsers = await actor.getAllUsers({});
-      setUsers(backendUsers.map(toUIUser));
+      let backendUsers: User[] = [];
+      if (actor) {
+        const raw = await actor.getAllUsers({});
+        backendUsers = raw.map(toUIUser);
+      }
+
+      // Merge localStorage pending users, deduplicate by username
+      const localUsers = getLocalUsers();
+      const backendUsernames = new Set(backendUsers.map((u) => u.username));
+      const filteredLocal = localUsers.filter(
+        (lu) => !backendUsernames.has(lu.username),
+      );
+      // Update localStorage to remove any that made it to backend
+      saveLocalUsers(filteredLocal);
+
+      const merged = [...backendUsers, ...filteredLocal.map(localUserToUI)];
+      setUsers(merged);
     } catch (err) {
       console.error(err);
-      toast.error("Gagal memuat data pengguna");
+      // On backend failure, still load local users
+      const localUsers = getLocalUsers();
+      setUsers(localUsers.map(localUserToUI));
     } finally {
       setLoadingUsers(false);
     }
@@ -146,13 +202,24 @@ export default function App() {
     username: string,
     password: string,
   ): Promise<"ok" | "pending" | "invalid"> => {
-    if (!actor) {
-      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
-      return "invalid";
-    }
-    try {
-      const backendUser = await actor.loginUser({ username, password });
-      if (backendUser == null) {
+    // Try backend first
+    if (actor) {
+      try {
+        const backendUser = await actor.loginUser({ username, password });
+        if (backendUser != null) {
+          const uiUser = toUIUser(backendUser);
+          const savedSignature = localStorage.getItem(
+            SIGNATURE_STORAGE_KEY(uiUser.username),
+          );
+          if (savedSignature) {
+            uiUser.tandatangan = savedSignature;
+          }
+          setCurrentUser(uiUser);
+          await loadReports(uiUser.nama);
+          setAppState("app-penyuluh");
+          return "ok";
+        }
+        // User not found in backend, check if pending in backend
         try {
           const allUsers = await actor.getAllUsers({});
           const found = allUsers.find(
@@ -162,23 +229,31 @@ export default function App() {
         } catch {
           // ignore
         }
-        return "invalid";
+      } catch (err) {
+        console.error("Backend login error:", err);
+        // Fall through to localStorage check
       }
-      const uiUser = toUIUser(backendUser);
-      const savedSignature = localStorage.getItem(
-        SIGNATURE_STORAGE_KEY(uiUser.username),
-      );
-      if (savedSignature) {
-        uiUser.tandatangan = savedSignature;
-      }
-      setCurrentUser(uiUser);
-      await loadReports(uiUser.nama);
-      setAppState("app-penyuluh");
-      return "ok";
-    } catch (err) {
-      console.error(err);
-      return "invalid";
     }
+
+    // Check localStorage fallback
+    const localUsers = getLocalUsers();
+    const localUser = localUsers.find(
+      (u) => u.username === username && u.password === password,
+    );
+    if (localUser) {
+      if (localUser.status === "Menunggu") return "pending";
+      if (localUser.status === "Aktif") {
+        const uiUser = localUserToUI(localUser);
+        setCurrentUser(uiUser);
+        setAppState("app-penyuluh");
+        return "ok";
+      }
+    }
+
+    if (!actor) {
+      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
+    }
+    return "invalid";
   };
 
   const handleLogout = () => {
@@ -190,10 +265,6 @@ export default function App() {
   };
 
   const handleRegisterUser = async (userData: Omit<User, "id">) => {
-    if (!actor) {
-      toast.error("Koneksi ke server belum siap, coba beberapa saat lagi");
-      return;
-    }
     // Save signature to localStorage BEFORE calling backend (avoid 2MB ICP limit)
     if (userData.tandatangan) {
       localStorage.setItem(
@@ -201,26 +272,58 @@ export default function App() {
         userData.tandatangan,
       );
     }
+
+    // Try backend first
+    if (actor) {
+      try {
+        await actor.registerUser({
+          nama: userData.nama,
+          wilayah: userData.wilayah,
+          nip: userData.nip || undefined,
+          username: userData.username,
+          password: userData.password,
+          tandatangan: undefined,
+        });
+        toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
+        handleNavigate("pending");
+        return;
+      } catch (err) {
+        console.error(
+          "Backend registration error, using localStorage fallback:",
+          err,
+        );
+        // Fall through to localStorage fallback
+      }
+    }
+
+    // localStorage fallback
     try {
-      await actor.registerUser({
+      const localUsers = getLocalUsers();
+      // Check if username already taken
+      const duplicate = localUsers.find(
+        (u) => u.username === userData.username,
+      );
+      if (duplicate) {
+        toast.error("Username sudah digunakan. Silakan pilih username lain.");
+        return;
+      }
+      const newLocalUser: LocalUser = {
+        id: `local_${Date.now()}`,
         nama: userData.nama,
         wilayah: userData.wilayah,
-        nip: userData.nip || undefined,
+        nip: userData.nip || "",
         username: userData.username,
         password: userData.password,
-        tandatangan: undefined,
-      });
+        status: "Menunggu",
+        tanggalDaftar: new Date().toISOString().split("T")[0],
+      };
+      localUsers.push(newLocalUser);
+      saveLocalUsers(localUsers);
       toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
       handleNavigate("pending");
-    } catch (err) {
-      // Cleanup signature from localStorage on failure
-      localStorage.removeItem(SIGNATURE_STORAGE_KEY(userData.username));
-      console.error("Registration error:", err);
-      toast.error(
-        `Pendaftaran gagal: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+    } catch (localErr) {
+      console.error("localStorage fallback error:", localErr);
+      toast.error("Pendaftaran gagal. Silakan coba lagi.");
     }
   };
 
@@ -280,6 +383,33 @@ export default function App() {
   };
 
   const handleApproveUser = async (id: string) => {
+    // Handle localStorage users
+    if (id.startsWith("local_")) {
+      const localUsers = getLocalUsers();
+      const updated = localUsers.map((u) =>
+        u.id === id ? { ...u, status: "Aktif" as const } : u,
+      );
+      saveLocalUsers(updated);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: "Aktif" as const } : u)),
+      );
+      // Fire-and-forget: try to register in backend
+      const localUser = localUsers.find((u) => u.id === id);
+      if (localUser && actor) {
+        actor
+          .registerUser({
+            nama: localUser.nama,
+            wilayah: localUser.wilayah,
+            nip: localUser.nip || undefined,
+            username: localUser.username,
+            password: localUser.password,
+            tandatangan: undefined,
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
     if (!actor) return;
     try {
       const ok = await actor.approveUser({ userId: BigInt(id) });
@@ -299,10 +429,18 @@ export default function App() {
   };
 
   const handleRejectUser = async (id: string) => {
+    if (id.startsWith("local_")) {
+      const localUsers = getLocalUsers();
+      saveLocalUsers(localUsers.filter((u) => u.id !== id));
+    }
     setUsers((prev) => prev.filter((u) => u.id !== id));
   };
 
   const handleDeleteUser = async (id: string) => {
+    if (id.startsWith("local_")) {
+      const localUsers = getLocalUsers();
+      saveLocalUsers(localUsers.filter((u) => u.id !== id));
+    }
     setUsers((prev) => prev.filter((u) => u.id !== id));
   };
 
