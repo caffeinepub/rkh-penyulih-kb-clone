@@ -69,6 +69,7 @@ function toUIReport(r: RKH_Laporan): Report {
     status: r.status === "Terkirim" ? "Terkirim" : "Draf",
     penyuluh: r.penyuluh,
     tandatangan: r.tandatangan,
+    lampiran: undefined,
   };
 }
 
@@ -150,10 +151,8 @@ export default function App() {
       return "invalid";
     }
     try {
-      // backend.ts returns User | null (already converted from Candid optional)
       const backendUser = await actor.loginUser({ username, password });
       if (backendUser == null) {
-        // Check if user exists but is pending approval
         try {
           const allUsers = await actor.getAllUsers({});
           const found = allUsers.find(
@@ -166,7 +165,6 @@ export default function App() {
         return "invalid";
       }
       const uiUser = toUIUser(backendUser);
-      // Load signature from localStorage
       const savedSignature = localStorage.getItem(
         SIGNATURE_STORAGE_KEY(uiUser.username),
       );
@@ -204,14 +202,13 @@ export default function App() {
       );
     }
     try {
-      // backend.ts accepts nip?: string and handles Candid conversion internally
       await actor.registerUser({
         nama: userData.nama,
         wilayah: userData.wilayah,
         nip: userData.nip || undefined,
         username: userData.username,
         password: userData.password,
-        tandatangan: undefined, // stored in localStorage only
+        tandatangan: undefined,
       });
       toast.success("Pendaftaran berhasil! Menunggu persetujuan admin.");
       handleNavigate("pending");
@@ -220,7 +217,9 @@ export default function App() {
       localStorage.removeItem(SIGNATURE_STORAGE_KEY(userData.username));
       console.error("Registration error:", err);
       toast.error(
-        "Pendaftaran gagal. Pastikan username belum digunakan dan coba lagi.",
+        `Pendaftaran gagal: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
     }
   };
@@ -242,7 +241,27 @@ export default function App() {
         penyuluh: data.penyuluh,
       });
       toast.success("Laporan berhasil disimpan");
+      // Reload reports and preserve lampiran in local state
       await loadReports(currentUser.nama);
+      // After reload, attach lampiran to the newly created report (local state only)
+      if (data.lampiran && data.lampiran.length > 0) {
+        setReports((prev) => {
+          // The latest report for this penyuluh should be the one we just saved
+          const updated = [...prev];
+          // Find last report with no lampiran matching this penyuluh
+          const idx = updated.findLastIndex(
+            (r) => r.penyuluh === data.penyuluh && !r.lampiran,
+          );
+          if (idx !== -1) {
+            updated[idx] = {
+              ...updated[idx],
+              lampiran: data.lampiran,
+              tandatangan: data.tandatangan,
+            };
+          }
+          return updated;
+        });
+      }
       setEditingReport(null);
       setCurrentPage("riwayat");
     } catch (err) {

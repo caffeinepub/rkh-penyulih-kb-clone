@@ -24,7 +24,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Download, FileX, Pencil, Trash2 } from "lucide-react";
+import {
+  Download,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  FileX,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Report } from "../../types";
@@ -50,40 +59,102 @@ function StatusBadge({ status }: { status: Report["status"] }) {
   );
 }
 
-function printReport(report: Report) {
-  const win = window.open("", "_blank");
-  if (!win) return;
+function getFileIcon(type: string) {
+  if (type === "application/pdf") {
+    return <FileText className="w-4 h-4 text-red-500" />;
+  }
+  if (
+    type === "application/msword" ||
+    type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return <FileText className="w-4 h-4 text-blue-500" />;
+  }
+  if (
+    type === "application/vnd.ms-powerpoint" ||
+    type ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  ) {
+    return <FileType className="w-4 h-4 text-orange-500" />;
+  }
+  if (
+    type === "application/vnd.ms-excel" ||
+    type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ) {
+    return <FileSpreadsheet className="w-4 h-4 text-green-600" />;
+  }
+  if (type.startsWith("image/")) {
+    return <FileImage className="w-4 h-4 text-emerald-500" />;
+  }
+  return <FileText className="w-4 h-4 text-muted-foreground" />;
+}
+
+function downloadReport(report: Report) {
   const ttHtml = report.tandatangan
     ? `<img src="${report.tandatangan}" style="max-height:80px;max-width:180px;object-fit:contain" alt="Tanda Tangan" />`
     : "<p style='font-style:italic;color:#999'>Tanda tangan tidak tersedia</p>";
-  win.document.write(`
-    <html><head><title>Laporan ${report.nomorLaporan}</title>
-    <style>body{font-family:Arial,sans-serif;padding:32px;max-width:700px;margin:auto}h2{margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 12px;border:1px solid #ddd;vertical-align:top}td:first-child{width:200px;font-weight:600;background:#f5f5f5}.signature-section{margin-top:32px;text-align:right}.signature-box{display:inline-block;text-align:center;min-width:180px}.signature-box img{max-height:80px}</style>
-    </head><body>
-    <h2>Rencana Kerja Harian</h2>
-    <p style="color:#666;margin-top:0">${report.nomorLaporan}</p>
-    <table>
-      <tr><td>Tanggal</td><td>${report.tanggal}</td></tr>
-      <tr><td>Nama Kegiatan</td><td>${report.namaKegiatan}</td></tr>
-      <tr><td>Sasaran</td><td>${report.sasaran}</td></tr>
-      <tr><td>Metode</td><td>${report.metode}</td></tr>
-      <tr><td>Lokasi</td><td>${report.lokasi}</td></tr>
-      <tr><td>Waktu</td><td>${report.waktu}</td></tr>
-      <tr><td>Indikator Keberhasilan</td><td>${report.indikator}</td></tr>
-      <tr><td>Detail Pelaksanaan</td><td>${report.detail}</td></tr>
-      <tr><td>Status</td><td>${report.status}</td></tr>
-    </table>
-    <div class="signature-section">
-      <div class="signature-box">
-        <p style="margin-bottom:8px;font-size:13px">Penyuluh KB,</p>
-        ${ttHtml}
-        <p style="margin-top:8px;font-weight:600;font-size:13px">${report.penyuluh}</p>
-      </div>
+
+  const lampiranHtml =
+    report.lampiran && report.lampiran.length > 0
+      ? `<tr><td>Lampiran</td><td><ul style="margin:0;padding-left:16px">${report.lampiran.map((f) => `<li>${f.name}</li>`).join("")}</ul></td></tr>`
+      : "";
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Laporan ${report.nomorLaporan}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 32px; max-width: 700px; margin: auto; color: #1a1a1a; }
+    h2 { margin-bottom: 4px; color: #1e3a5f; }
+    .subtitle { color: #666; margin-top: 0; margin-bottom: 24px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    td { padding: 8px 12px; border: 1px solid #ddd; vertical-align: top; font-size: 14px; }
+    td:first-child { width: 200px; font-weight: 600; background: #f5f5f5; }
+    .signature-section { margin-top: 40px; text-align: right; }
+    .signature-box { display: inline-block; text-align: center; min-width: 180px; }
+    .signature-label { font-size: 13px; color: #444; margin-bottom: 8px; }
+    .signature-name { margin-top: 8px; font-weight: 700; font-size: 13px; }
+    .signature-role { font-size: 12px; color: #666; }
+    .footer { margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; font-size: 11px; color: #aaa; }
+  </style>
+</head>
+<body>
+  <h2>Rencana Kerja Harian</h2>
+  <p class="subtitle">${report.nomorLaporan} &mdash; ${report.status}</p>
+  <table>
+    <tr><td>Tanggal</td><td>${report.tanggal || "-"}</td></tr>
+    <tr><td>Nama Kegiatan</td><td>${report.namaKegiatan || "-"}</td></tr>
+    <tr><td>Sasaran</td><td>${report.sasaran || "-"}</td></tr>
+    <tr><td>Metode</td><td>${report.metode || "-"}</td></tr>
+    <tr><td>Lokasi</td><td>${report.lokasi || "-"}</td></tr>
+    <tr><td>Waktu</td><td>${report.waktu || "-"}</td></tr>
+    <tr><td>Indikator Keberhasilan</td><td>${report.indikator || "-"}</td></tr>
+    <tr><td>Detail Pelaksanaan</td><td>${report.detail || "-"}</td></tr>
+    ${lampiranHtml}
+  </table>
+  <div class="signature-section">
+    <div class="signature-box">
+      <p class="signature-label">Penyuluh KB,</p>
+      ${ttHtml}
+      <p class="signature-name">${report.penyuluh || "-"}</p>
+      <p class="signature-role">Penyuluh KB</p>
     </div>
-    </body></html>
-  `);
-  win.document.close();
-  win.print();
+  </div>
+  <div class="footer">Dibuat dengan RKH Penyuluh KB &mdash; BKKBN</div>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Laporan_${report.nomorLaporan.replace(/[^a-zA-Z0-9]/g, "_")}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast.success("Laporan berhasil diunduh");
 }
 
 export function ReportHistory({
@@ -175,8 +246,8 @@ export function ReportHistory({
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          onClick={() => printReport(report)}
-                          title="Cetak laporan"
+                          onClick={() => downloadReport(report)}
+                          title="Unduh laporan"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </Button>
@@ -232,6 +303,26 @@ export function ReportHistory({
                 <StatusBadge status={viewReport.status} />
               </div>
 
+              {/* Lampiran */}
+              {viewReport.lampiran && viewReport.lampiran.length > 0 && (
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground w-40 flex-shrink-0">
+                    Lampiran:
+                  </span>
+                  <div className="space-y-1">
+                    {viewReport.lampiran.map((f, i) => (
+                      <div
+                        key={`${f.name}-${i}`}
+                        className="flex items-center gap-1.5"
+                      >
+                        {getFileIcon(f.type)}
+                        <span className="text-xs">{f.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Tanda tangan */}
               <div className="pt-2 border-t border-border">
                 <div className="flex justify-end">
@@ -261,11 +352,12 @@ export function ReportHistory({
 
               <div className="pt-1">
                 <Button
+                  data-ocid="history.download_button"
                   size="sm"
                   variant="outline"
-                  onClick={() => printReport(viewReport)}
+                  onClick={() => downloadReport(viewReport)}
                 >
-                  <Download className="w-3.5 h-3.5 mr-2" /> Cetak Laporan
+                  <Download className="w-3.5 h-3.5 mr-2" /> Unduh Laporan
                 </Button>
               </div>
             </div>

@@ -3,10 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PenLine, Upload } from "lucide-react";
-import { useState } from "react";
+import {
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  PenLine,
+  Plus,
+  X,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Report, ReportStatus } from "../../types";
+import type { LampiranFile, Report, ReportStatus } from "../../types";
 
 interface ReportFormProps {
   initialReport?: Partial<Report>;
@@ -28,6 +36,36 @@ const emptyForm = {
   detail: "",
 };
 
+function getFileIcon(type: string) {
+  if (type === "application/pdf") {
+    return <FileText className="w-5 h-5 text-red-500" />;
+  }
+  if (
+    type === "application/msword" ||
+    type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return <FileText className="w-5 h-5 text-blue-500" />;
+  }
+  if (
+    type === "application/vnd.ms-powerpoint" ||
+    type ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  ) {
+    return <FileType className="w-5 h-5 text-orange-500" />;
+  }
+  if (
+    type === "application/vnd.ms-excel" ||
+    type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ) {
+    return <FileSpreadsheet className="w-5 h-5 text-green-600" />;
+  }
+  if (type.startsWith("image/")) {
+    return <FileImage className="w-5 h-5 text-emerald-500" />;
+  }
+  return <FileText className="w-5 h-5 text-muted-foreground" />;
+}
+
 export function ReportForm({
   initialReport,
   userTandatangan,
@@ -36,9 +74,41 @@ export function ReportForm({
   onCancel,
 }: ReportFormProps) {
   const [form, setForm] = useState({ ...emptyForm, ...initialReport });
+  const [lampiran, setLampiran] = useState<LampiranFile[]>(
+    initialReport?.lampiran ?? [],
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = (field: string, value: string) =>
     setForm((p) => ({ ...p, [field]: value }));
+
+  const handleAddFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (lampiran.length >= 2) {
+      toast.error("Maksimal 2 lampiran");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 10MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setLampiran((prev) => [
+        ...prev,
+        { name: file.name, type: file.type, dataUrl },
+      ]);
+    };
+    reader.readAsDataURL(file);
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveFile = (idx: number) => {
+    setLampiran((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const submit = (status: ReportStatus) => {
     if (!form.nomorLaporan || !form.tanggal) {
@@ -51,6 +121,7 @@ export function ReportForm({
       status,
       penyuluh: userName || "",
       tandatangan: userTandatangan,
+      lampiran,
     });
     toast.success(
       status === "Terkirim"
@@ -184,17 +255,58 @@ export function ReportForm({
             />
           </div>
 
-          {/* Lampiran & Tanda Tangan */}
-          <div className="space-y-1.5">
-            <Label>Lampiran</Label>
-            <div
-              data-ocid="report_form.dropzone"
-              className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-colors"
-            >
-              <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Klik untuk mengunggah atau seret file ke sini
-              </p>
+          {/* Lampiran */}
+          <div className="space-y-2">
+            <Label>Lampiran (Maks. 2 berkas)</Label>
+            <div className="space-y-2">
+              {lampiran.map((file, idx) => (
+                <div
+                  key={`${file.name}-${idx}`}
+                  data-ocid={`report_form.lampiran.item.${idx + 1}`}
+                  className="flex items-center gap-3 border border-border rounded-lg px-3 py-2.5 bg-muted/20"
+                >
+                  <div className="flex-shrink-0">{getFileIcon(file.type)}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {file.type || "Berkas"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    data-ocid={`report_form.lampiran_remove.${idx + 1}`}
+                    onClick={() => handleRemoveFile(idx)}
+                    className="flex-shrink-0 w-6 h-6 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/20 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              {lampiran.length < 2 && (
+                <button
+                  type="button"
+                  data-ocid="report_form.lampiran_upload"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-lg p-4 text-sm text-muted-foreground cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>
+                    Tambah Lampiran
+                    {lampiran.length === 1
+                      ? " (sisa 1 slot)"
+                      : " (PDF, Word, PPT, Excel, Gambar, dll)"}
+                  </span>
+                </button>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="*"
+                className="hidden"
+                onChange={handleAddFile}
+              />
             </div>
           </div>
 

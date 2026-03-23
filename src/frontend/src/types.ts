@@ -20,6 +20,12 @@ export interface User {
   tandatangan?: string; // base64 image
 }
 
+export interface LampiranFile {
+  name: string;
+  type: string;
+  dataUrl: string;
+}
+
 export interface Report {
   id: string;
   nomorLaporan: string;
@@ -34,4 +40,5 @@ export interface Report {
   status: ReportStatus;
   penyuluh: string;
   tandatangan?: string; // base64 image from user profile
+  lampiran?: LampiranFile[];
 }

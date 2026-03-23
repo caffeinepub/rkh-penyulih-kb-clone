@@ -111,6 +111,12 @@ export function RegisterPage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isActorReady) {
+      toast.error(
+        "Koneksi ke server belum siap. Tunggu sebentar dan coba lagi.",
+      );
+      return;
+    }
     if (!form.nama || !form.wilayah || !form.username || !form.password) {
       toast.error("Nama, Wilayah Kerja, Username, dan Password wajib diisi");
       return;
@@ -159,8 +165,8 @@ export function RegisterPage({
               >
                 <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
                 <span>
-                  Menghubungkan ke server... Pendaftaran akan diproses setelah
-                  terhubung.
+                  Menghubungkan ke server... Tombol daftar akan aktif setelah
+                  terhubung. Mohon tunggu.
                 </span>
               </div>
             )}
@@ -323,12 +329,17 @@ export function RegisterPage({
               data-ocid="register.submit_button"
               type="submit"
               className="w-full bg-primary text-primary-foreground"
-              disabled={loading}
+              disabled={loading || !isActorReady}
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Mendaftar...
+                </>
+              ) : !isActorReady ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Menghubungkan ke server...
                 </>
               ) : (
                 "Daftar & Minta Persetujuan"
